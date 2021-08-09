@@ -1,0 +1,35 @@
+Selective Repeat Algorithm Implementation  
+  
+High Level Design  
+The server and client both use a circular queue to keep track of information. In the client, the circular
+queue is used to keep track of the packets that are currently in the sending window. When an ACK is received 
+for a packet, the client checks whether or not the packet is the first packet in the queue. If it is, then
+it removed packets from the queue until an unACK'd packet is reached, otherwise, the client will mark the packet
+as ACK'd. The client will send packets until it's window is full or it runs out of data to send. The client will 
+recognize that all packets have been sent, when there is no data to be sent and the queue is empty, meaning that 
+all packets have been ACK'd. The server uses the circular queue to keep track of its buffered packets, for when
+packets are received out of order. Upon receiving any packet, the server will respond with an appropriate ACK 
+packet. The client keeps a timer for each packet sent in the window, and will check whether or not a packet needs
+to be resent periodically.  
+  
+Specific Problems  
+I started with a Go-Back-N implementation which was relatively easy to implement. When transitioning to
+a selective repeat implementation, I had to add a buffer for packets to the server, which I decided to 
+implement using an array kept track of as a circular queue. I kept track of the start of the queue and the
+next sequence number that the server was waiting for. If packets were received in advance, then the server 
+would insert them into the buffer based on the sequence number of the packet in relation to the current 
+sequence number being waited for and the start of the queue. Since we know that every packet will contain 
+the maximum 512 byte payload if available, we can find the appropriate location in buffer by dividing by 
+the maximum payload size. In addition to buffering packets, identifying which packets should be inserted 
+into the buffer, and which packets were simply transmitted late, became difficult as sometimes the packets
+would arrive late. To distinguish between packets that arrived late, and packets that should be buffered, I 
+set a threshold such that if the sequence number of the incoming packet is more that WND_SIZE * PAYLOAD_SIZE
+away from the expected sequence number (after accounting for the MAX_SEQN wraparound), I would send an ACK for
+the packet and ignore it.  
+  
+When checking timers in the client, I ran a for loop through all packets from the start to end of the queue, and
+checked that the packet had not been ACK'd yet and that the timer had expired. After resending the packet, I would
+restart the associated timer.  
+  
+Testing  
+To test, use tc command on Linux to simulate packet loss. 
